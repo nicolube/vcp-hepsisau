@@ -1,0 +1,18 @@
+{
+    "host": "localhost",
+    "port": 8080,
+    "repositories":
+    [
+        {
+            "type": "MariaDB",
+            "name": "default",
+            "data": {
+                "host": "172.17.0.1",
+                "port": 3306,
+                "database": "vcp-dev",
+                "username": "vcp-dev",
+                "password": "dev"
+            }
+        }
+    ]
+}
