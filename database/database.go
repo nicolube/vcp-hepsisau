@@ -8,15 +8,21 @@ import (
 )
 
 type Reposetory interface {
-	GetUser(id int) (model.UserModel, error)
+	GetUser(id int64) (model.UserModel, error)
 	UpdateUser(user model.UserModel) error
 	CreateUser(user model.UserModel) error
 	DeleteUser(user model.UserModel) error
 
-	GetTokenByUser(userId int) ([]model.UserTokenModel, error)
+	GetTokenByUser(userId int64) ([]model.UserTokenModel, error)
 	GetTokenByToken(token string) (model.UserTokenModel, error)
 	CreateToken(model.UserTokenModel) error
 	DeleteToken(token model.UserTokenModel) error
+
+	GetContent(contentId int64) (model.ContentModel, error)
+	CreateContent(content model.ContentModel) (model.ContentModel, error)
+	DeleteContent(content model.ContentModel) error
+
+	GetMenu() ([]model.MenuItemModel, error)
 }
 
 type Database struct {

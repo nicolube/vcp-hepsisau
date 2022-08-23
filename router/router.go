@@ -1,11 +1,15 @@
 package router
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/nicolube/vcp-hepsiau-backend/database"
+	"github.com/nicolube/vcp-hepsiau-backend/model"
 )
 
 func Init(rtr *mux.Router, repo database.Reposetory) {
@@ -14,13 +18,24 @@ func Init(rtr *mux.Router, repo database.Reposetory) {
 	}
 
 	rtr.HandleFunc("/", RootHandler)
+	rtr.Path("/content/{id:[0-9]+}").HandlerFunc(getContent(repo)).Methods("GET")
+	rtr.Path("/menu").HandlerFunc(GetMenu(repo)).Methods("GET")
 	// securedRtr := rtr.PathPrefix("/secure").MatcherFunc(authMatcher).Subrouter()
 	securedRtr := rtr.PathPrefix("/secure").Subrouter()
 	securedRtr.Use(userManager.Auth)
-	securedRtr.HandleFunc("/test", TestSecuredHandler).Methods("GET")
-	securedRtr.HandleFunc("/test2/", TestSecured2Handler)
+	securedRtr.HandleFunc("/content", createContent(repo)).Methods("PUT")
+	securedRtr.Path("/content/{id:[0-9]+}").HandlerFunc(deleteContent(repo)).Methods("DELETE")
 	securedRtr.NewRoute().HandlerFunc(notFound)
 	// rtr.PathPrefix("/secure").HandlerFunc(noAuth)
+}
+
+func checkErr(w http.ResponseWriter, err error) bool {
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, err.Error())
+		return true
+	}
+	return false
 }
 
 func notFound(w http.ResponseWriter, req *http.Request) {
@@ -31,10 +46,68 @@ func RootHandler(w http.ResponseWriter, req *http.Request) {
 	fmt.Println(req.URL.Path)
 }
 
-func TestSecuredHandler(w http.ResponseWriter, req *http.Request) {
-	fmt.Printf("Welcome to the secured area!\n")
-	fmt.Fprintf(w, "Welcome to the secured area!")
+func createContent(repo database.Reposetory) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		fmt.Println(req.URL.Path)
+		user := req.Context().Value(UserManagerContent("user")).(model.UserModel)
+		var content model.ContentModel
+		json.NewDecoder(req.Body).Decode(&content)
+		content.UserId = user.Id
+		content, err := repo.CreateContent(content)
+		if checkErr(w, err) {
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}
 }
-func TestSecured2Handler(w http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(w, "Welcome to the secured area!2")
+
+func deleteContent(repo database.Reposetory) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		id, err := strconv.Atoi(mux.Vars(req)["id"])
+		if checkErr(w, err) {
+			return
+		}
+		content := model.ContentModel{}
+		content.Id = int64(id)
+		err = repo.DeleteContent(content)
+		if checkErr(w, err) {
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+
+	}
+}
+
+func getContent(repo database.Reposetory) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		id, err := strconv.ParseInt(mux.Vars(req)["id"], 10, 64)
+		if checkErr(w, err) {
+			return
+		}
+		content, err := repo.GetContent(id)
+		if checkErr(w, err) {
+			return
+		}
+		data, err := json.Marshal(content)
+		if checkErr(w, err) {
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+	}
+}
+
+func GetMenu(repo database.Reposetory) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		content, err := repo.GetMenu()
+		if checkErr(w, err) {
+			return
+		}
+		data, err := json.Marshal(content)
+		if checkErr(w, err) {
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+	}
 }

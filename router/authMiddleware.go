@@ -3,12 +3,13 @@ package router
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/nicolube/vcp-hepsiau-backend/database"
 )
+
+type UserManagerContent string
 
 type UserManager struct {
 	Reposetory database.Reposetory
@@ -33,14 +34,7 @@ func (userManager *UserManager) Auth(next http.Handler) http.Handler {
 			w.WriteHeader(500)
 			return
 		}
-		ctx := context.WithValue(r.Context(), "user", userModel)
+		ctx := context.WithValue(r.Context(), UserManagerContent("user"), userModel)
 		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func (userManager *UserManager) end(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("End Requesy.")
-		next.ServeHTTP(w, r)
 	})
 }

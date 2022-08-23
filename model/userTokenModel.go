@@ -2,7 +2,7 @@ package model
 
 type UserTokenModel struct {
 	Model
-	UserId     int
+	UserId     int64
 	Token      string
 	Ip         string
 	LastUsedAt UnixTimeS

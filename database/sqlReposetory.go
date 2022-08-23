@@ -49,7 +49,7 @@ func conntectToSql(conf config.SQLConfig, driver string) *SQLReposetory {
 	return repo
 }
 
-func (repo *SQLReposetory) GetUser(id int) (model.UserModel, error) {
+func (repo *SQLReposetory) GetUser(id int64) (model.UserModel, error) {
 	model := model.UserModel{}
 	row := repo.db.QueryRow("SELECT * FROM user WHERE id=?", id)
 	err := row.Scan(&model.Id,
@@ -75,7 +75,7 @@ func (repo *SQLReposetory) DeleteUser(user model.UserModel) error {
 	return err
 }
 
-func (repo *SQLReposetory) GetTokenByUser(userId int) ([]model.UserTokenModel, error) {
+func (repo *SQLReposetory) GetTokenByUser(userId int64) ([]model.UserTokenModel, error) {
 	tokens := make([]model.UserTokenModel, 0)
 	rows, err := repo.db.Query("SELECT * FROM user_token WHERE id=?", userId)
 	if err != nil {
@@ -109,4 +109,72 @@ func (repo *SQLReposetory) CreateToken(token model.UserTokenModel) error {
 func (repo *SQLReposetory) DeleteToken(token model.UserTokenModel) error {
 	_, err := repo.db.Exec("DELETE FROM user_token WHERE id=?", token.Id)
 	return err
+}
+
+func (repo *SQLReposetory) GetContent(conetntId int64) (model.ContentModel, error) {
+	model := model.ContentModel{}
+	row := repo.db.QueryRow("SELECT * FROM content WHERE id=?", conetntId)
+	err := row.Scan(&model.Id, &model.UserId, &model.Type, &model.Content, &model.CreatedAt)
+	return model, err
+}
+
+func (repo *SQLReposetory) CreateContent(content model.ContentModel) (model.ContentModel, error) {
+	result, err := repo.db.Exec("INSERT INTO content (user_id, type, content) VALUES (?, ?, ?)", content.UserId, content.Type, content.Content)
+	id, _ := result.LastInsertId()
+	content.Id = id
+	return content, err
+}
+
+func (repo *SQLReposetory) DeleteContent(content model.ContentModel) error {
+	_, err := repo.db.Exec("DELETE FROM content WHERE id=?", content.Id)
+	return err
+}
+
+func (repo *SQLReposetory) GetMenu() ([]model.MenuItemModel, error) {
+	var menu []model.MenuItemModel
+	var menuP []*model.MenuItemModel
+	menuMap := make(map[int64]*model.MenuItemModel)
+	menuParentMap := make(map[int64]int64)
+	rows, err := repo.db.Query("SELECT m.id, m.parent_id, m.name, m.sort_id, s.id, s.name, s.path FROM menu AS m LEFT JOIN side AS s ON m.side_id = s.id")
+	if err != nil {
+		return menu, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		menuItem := model.MenuItemModel{}
+		var parentId *int64
+		var sideId *int64
+		var sideName *string
+		var sidePath *string
+		err = rows.Scan(&menuItem.Id, &parentId, &menuItem.Name, &menuItem.SortId, &sideId, &sideName, &sidePath)
+		if err != nil {
+			return menu, err
+		}
+		if sideId != nil {
+			menuItem.Side = model.SideModel{
+				Path: *sidePath,
+				Name: *sideName,
+			}
+			menuItem.Side.Id = *sideId
+		}
+		menuMap[menuItem.Id] = &menuItem
+		if parentId != nil {
+			menuParentMap[menuItem.Id] = *parentId
+		} else {
+			menuParentMap[menuItem.Id] = -1
+		}
+	}
+	for id, item := range menuMap {
+		partentId := menuParentMap[id]
+		parent, parentExist := menuMap[partentId]
+		if !parentExist {
+			menuP = append(menuP, item)
+			continue
+		}
+		parent.Children = append(parent.Children, *item)
+	}
+	for _, item := range menuP {
+		menu = append(menu, *item)
+	}
+	return menu, err
 }
