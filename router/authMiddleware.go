@@ -2,7 +2,6 @@ package router
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -23,7 +22,6 @@ func (userManager *UserManager) Auth(next http.Handler) http.Handler {
 			return
 		}
 		token := strings.SplitN(authHeader, " ", 2)[1]
-		fmt.Println(token)
 		tokenModel, err := userManager.Reposetory.GetTokenByToken(token)
 		if err != nil {
 			w.WriteHeader(401)

@@ -23,6 +23,13 @@ type Reposetory interface {
 	DeleteContent(content model.ContentModel) error
 
 	GetMenu() ([]model.MenuItemModel, error)
+	SaveMenu(menu []model.MenuItemModel) error
+
+	GetMenuItem(menuItemId int64) (model.MenuItemModel, error)
+	GeAlltMenuItem() ([]model.MenuItemModel, error)
+	SaveMenuItem(model model.MenuItemModel) error
+	CreateMenuItem(model model.MenuItemModel) (model.MenuItemModel, error)
+	DeleteMenuItem(model model.MenuItemModel) error
 }
 
 type Database struct {

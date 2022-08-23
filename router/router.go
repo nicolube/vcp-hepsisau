@@ -19,14 +19,13 @@ func Init(rtr *mux.Router, repo database.Reposetory) {
 
 	rtr.HandleFunc("/", RootHandler)
 	rtr.Path("/content/{id:[0-9]+}").HandlerFunc(getContent(repo)).Methods("GET")
-	rtr.Path("/menu").HandlerFunc(GetMenu(repo)).Methods("GET")
-	// securedRtr := rtr.PathPrefix("/secure").MatcherFunc(authMatcher).Subrouter()
+	rtr.Path("/menu").HandlerFunc(getMenu(repo)).Methods("GET")
 	securedRtr := rtr.PathPrefix("/secure").Subrouter()
 	securedRtr.Use(userManager.Auth)
 	securedRtr.HandleFunc("/content", createContent(repo)).Methods("PUT")
+	securedRtr.HandleFunc("/menu", saveMenu(repo)).Methods("POST")
 	securedRtr.Path("/content/{id:[0-9]+}").HandlerFunc(deleteContent(repo)).Methods("DELETE")
 	securedRtr.NewRoute().HandlerFunc(notFound)
-	// rtr.PathPrefix("/secure").HandlerFunc(noAuth)
 }
 
 func checkErr(w http.ResponseWriter, err error) bool {
@@ -39,7 +38,7 @@ func checkErr(w http.ResponseWriter, err error) bool {
 }
 
 func notFound(w http.ResponseWriter, req *http.Request) {
-	w.WriteHeader(404)
+	w.WriteHeader(http.StatusNotFound)
 }
 
 func RootHandler(w http.ResponseWriter, req *http.Request) {
@@ -97,17 +96,32 @@ func getContent(repo database.Reposetory) func(w http.ResponseWriter, req *http.
 	}
 }
 
-func GetMenu(repo database.Reposetory) func(w http.ResponseWriter, req *http.Request) {
+func getMenu(repo database.Reposetory) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		content, err := repo.GetMenu()
+		menu, err := repo.GetMenu()
 		if checkErr(w, err) {
 			return
 		}
-		data, err := json.Marshal(content)
+		data, err := json.Marshal(menu)
 		if checkErr(w, err) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write(data)
+	}
+}
+
+func saveMenu(repo database.Reposetory) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		var menu []model.MenuItemModel
+		err := json.NewDecoder(req.Body).Decode(&menu)
+		if checkErr(w, err) {
+			return
+		}
+		err = repo.SaveMenu(menu)
+		if checkErr(w, err) {
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
 }

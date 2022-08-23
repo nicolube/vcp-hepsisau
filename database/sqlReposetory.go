@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/nicolube/vcp-hepsiau-backend/config"
@@ -134,7 +135,6 @@ func (repo *SQLReposetory) GetMenu() ([]model.MenuItemModel, error) {
 	var menu []model.MenuItemModel
 	var menuP []*model.MenuItemModel
 	menuMap := make(map[int64]*model.MenuItemModel)
-	menuParentMap := make(map[int64]int64)
 	rows, err := repo.db.Query("SELECT m.id, m.parent_id, m.name, m.sort_id, s.id, s.name, s.path FROM menu AS m LEFT JOIN side AS s ON m.side_id = s.id")
 	if err != nil {
 		return menu, err
@@ -142,39 +142,115 @@ func (repo *SQLReposetory) GetMenu() ([]model.MenuItemModel, error) {
 	defer rows.Close()
 	for rows.Next() {
 		menuItem := model.MenuItemModel{}
-		var parentId *int64
 		var sideId *int64
 		var sideName *string
 		var sidePath *string
-		err = rows.Scan(&menuItem.Id, &parentId, &menuItem.Name, &menuItem.SortId, &sideId, &sideName, &sidePath)
+		err = rows.Scan(&menuItem.Id, &menuItem.ParentId, &menuItem.Name, &menuItem.SortId, &sideId, &sideName, &sidePath)
 		if err != nil {
 			return menu, err
 		}
 		if sideId != nil {
-			menuItem.Side = model.SideModel{
+			menuItem.Side = &model.SideModel{
 				Path: *sidePath,
 				Name: *sideName,
 			}
 			menuItem.Side.Id = *sideId
 		}
 		menuMap[menuItem.Id] = &menuItem
-		if parentId != nil {
-			menuParentMap[menuItem.Id] = *parentId
-		} else {
-			menuParentMap[menuItem.Id] = -1
-		}
 	}
-	for id, item := range menuMap {
-		partentId := menuParentMap[id]
-		parent, parentExist := menuMap[partentId]
-		if !parentExist {
+	for _, item := range menuMap {
+		if item.ParentId == nil {
 			menuP = append(menuP, item)
 			continue
 		}
-		parent.Children = append(parent.Children, *item)
+		parent, parentExist := menuMap[*item.ParentId]
+		if parentExist {
+			parent.Children = append(parent.Children, *item)
+		}
 	}
 	for _, item := range menuP {
 		menu = append(menu, *item)
 	}
 	return menu, err
+}
+
+func (repo *SQLReposetory) SaveMenu(menu []model.MenuItemModel) error {
+	ids := make([]string, 0)
+
+	var deflate func(model.MenuItemModel, *int64)
+	deflate = func(in model.MenuItemModel, parentId *int64) {
+		var err error
+		in.ParentId = parentId
+		if in.Id > 0 {
+			err = repo.SaveMenuItem(in)
+		} else {
+			in, err = repo.CreateMenuItem(in)
+
+		}
+		if err != nil {
+			return
+		}
+		ids = append(ids, strconv.FormatInt(in.Id, 10))
+		if in.Children == nil || len(in.Children) == 0 {
+			return
+		}
+
+		for _, child := range in.Children {
+			deflate(child, &in.Id)
+		}
+	}
+	for _, item := range menu {
+		deflate(item, nil)
+	}
+	idsStr := strings.Join(ids, ", ")
+	_, err := repo.db.Exec("DELETE FROM menu WHERE id NOT IN (" + idsStr + ")")
+	return err
+}
+
+func (repo *SQLReposetory) GetMenuItem(menuItemId int64) (model.MenuItemModel, error) {
+	model := model.MenuItemModel{}
+	row := repo.db.QueryRow("SELECT * FROM menu WHERE id=?", menuItemId)
+	err := row.Scan(&model.Id, &model.ParentId, &model.Name, &model.SortId, &model.Side.Id)
+	return model, err
+}
+
+func (repo *SQLReposetory) GeAlltMenuItem() ([]model.MenuItemModel, error) {
+	models := make([]model.MenuItemModel, 0)
+	rows, err := repo.db.Query("SELECT * FROM menu")
+	if err != nil {
+		return models, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		model := model.MenuItemModel{}
+		err := rows.Scan(&model.Id, &model.ParentId, &model.Name, &model.SortId, &model.Side.Id)
+		if err != nil {
+			return models, err
+		}
+		models = append(models, model)
+	}
+	return models, err
+}
+
+func (repo *SQLReposetory) SaveMenuItem(model model.MenuItemModel) error {
+	_, err := repo.db.Exec("UPDATE menu SET (parent_id, `name`, sort_id, side_id) VALUES (?, ?, ?, ?) WHERE id=?", model.ParentId, model.Name, model.SortId, model.SortId, model.Id)
+	return err
+}
+
+func (repo *SQLReposetory) CreateMenuItem(model model.MenuItemModel) (model.MenuItemModel, error) {
+	var sideId *int64
+	if model.Side != nil {
+		sideId = &model.Side.Id
+	}
+	result, err := repo.db.Exec("INSERT INTO menu (parent_id, `name`, sort_id, side_id) VALUES (?, ?, ?, ?)", model.ParentId, model.Name, model.SortId, sideId)
+	if err != nil {
+		return model, err
+	}
+	model.Id, err = result.LastInsertId()
+	return model, err
+}
+
+func (repo *SQLReposetory) DeleteMenuItem(model model.MenuItemModel) error {
+	_, err := repo.db.Exec("DELTE FROM menu WHERE id=?", model.Id)
+	return err
 }
