@@ -254,3 +254,27 @@ func (repo *SQLReposetory) DeleteMenuItem(model model.MenuItemModel) error {
 	_, err := repo.db.Exec("DELTE FROM menu WHERE id=?", model.Id)
 	return err
 }
+
+func (repo *SQLReposetory) GetSite(path string) (model.SideModel, error) {
+	m := model.SideModel{}
+	content := make([]model.ContentModel, 0)
+	rows, err := repo.db.Query("SELECT s.id, s.name, s.path, c.id, c.user_id, c.type, c.content, c.createdAt "+
+		"FROM side AS s "+
+		"LEFT JOIN side_content AS sc ON s.id=sc.site_id "+
+		"LEFT JOIN content AS c ON c.id=sc.content_id "+
+		"WHERE s.path=?", path)
+	if err != nil {
+		return m, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		cm := model.ContentModel{}
+		err := rows.Scan(&m.Id, &m.Name, &m.Path, &cm.Id, &cm.UserId, &cm.Type, &cm.Content, &cm.CreatedAt)
+		if err != nil {
+			return m, err
+		}
+		content = append(content, cm)
+	}
+	m.Content = content
+	return m, err
+}

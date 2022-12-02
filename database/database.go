@@ -22,6 +22,8 @@ type Reposetory interface {
 	CreateContent(content model.ContentModel) (model.ContentModel, error)
 	DeleteContent(content model.ContentModel) error
 
+	GetSite(path string) (model.SideModel, error)
+
 	GetMenu() ([]model.MenuItemModel, error)
 	SaveMenu(menu []model.MenuItemModel) error
 

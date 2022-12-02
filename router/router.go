@@ -20,6 +20,7 @@ func Init(rtr *mux.Router, repo database.Reposetory) {
 	rtr.HandleFunc("/", RootHandler)
 	rtr.Path("/content/{id:[0-9]+}").HandlerFunc(getContent(repo)).Methods("GET")
 	rtr.Path("/menu").HandlerFunc(getMenu(repo)).Methods("GET")
+	rtr.Path("/site").HandlerFunc(getSite(repo)).Methods("GET")
 	securedRtr := rtr.PathPrefix("/secure").Subrouter()
 	securedRtr.Use(userManager.Auth)
 	securedRtr.HandleFunc("/content", createContent(repo)).Methods("PUT")
@@ -123,5 +124,25 @@ func saveMenu(repo database.Reposetory) func(w http.ResponseWriter, req *http.Re
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func getSite(repo database.Reposetory) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		url := req.URL.Query().Get("url")
+		if len(url) == 0 {
+			checkErr(w, fmt.Errorf("no url is given"))
+			return
+		}
+		menu, err := repo.GetSite(url)
+		if checkErr(w, err) {
+			return
+		}
+		data, err := json.Marshal(menu)
+		if checkErr(w, err) {
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
 	}
 }
